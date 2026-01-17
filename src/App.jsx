@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { supabase } from './supabaseClient';
 
 const RVPStatusSite = () => {
   const [isCoach, setIsCoach] = useState(true);
@@ -57,18 +58,52 @@ const RVPStatusSite = () => {
       setHasVoted(true);
       setVote(voted);
     }
+    // Load poll results from Supabase
+    loadPollResults();
   }, []);
 
-  const handleVote = (choice) => {
-    if (!hasVoted) {
-      setVote(choice);
-      setHasVoted(true);
-      localStorage.setItem('rvp-voted', choice);
+  const loadPollResults = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('poll_votes')
+        .select('vote_type');
       
-      setPollResults(prev => ({
-        ...prev,
-        [choice]: prev[choice] + 1
-      }));
+      if (error) throw error;
+      
+      // Count votes
+      const counts = { in: 0, out: 0 };
+      data.forEach(vote => {
+        if (vote.vote_type === 'in' || vote.vote_type === 'out') {
+          counts[vote.vote_type]++;
+        }
+      });
+      
+      setPollResults(counts);
+    } catch (error) {
+      console.error('Error loading poll results:', error);
+    }
+  };
+
+  const handleVote = async (choice) => {
+    if (!hasVoted) {
+      try {
+        // Insert vote into Supabase
+        const { error } = await supabase
+          .from('poll_votes')
+          .insert([{ vote_type: choice }]);
+        
+        if (error) throw error;
+        
+        // Update local state
+        setVote(choice);
+        setHasVoted(true);
+        localStorage.setItem('rvp-voted', choice);
+        
+        // Reload poll results
+        await loadPollResults();
+      } catch (error) {
+        console.error('Error voting:', error);
+      }
     }
   };
 
