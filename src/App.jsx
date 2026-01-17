@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { supabase } from './supabaseClient';
 
 const RVPStatusSite = () => {
@@ -7,17 +7,11 @@ const RVPStatusSite = () => {
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [vote, setVote] = useState(null);
-  const [hasVoted, setHasVoted] = useState(false);
-  const [pollResults, setPollResults] = useState({ in: 4501, out: 6369 });
-  const [trendData] = useState([
-    { date: 'Ma', out: 14 },
-    { date: 'Di', out: 20 },
-    { date: 'Wo', out: 19 },
-    { date: 'Do', out: 21 },
-    { date: 'Vr', out: 21 },
-    { date: 'Za', out: 22 },
-    { date: 'Zo', out: 22 }
-  ]);
+  const [canVote, setCanVote] = useState(true);
+  const [timeUntilNextVote, setTimeUntilNextVote] = useState(null);
+  const [pollResults, setPollResults] = useState({ in: 0, out: 0 });
+  const [trendData, setTrendData] = useState([]);
+  const [trendPeriod, setTrendPeriod] = useState('week');
 
   const [newsItems] = useState([
     {
@@ -52,16 +46,7 @@ const RVPStatusSite = () => {
     }
   ]);
 
-  useEffect(() => {
-    const voted = localStorage.getItem('rvp-voted');
-    if (voted) {
-      setHasVoted(true);
-      setVote(voted);
-    }
-    // Load poll results from Supabase
-    loadPollResults();
-  }, []);
-
+  // Load poll results from database
   const loadPollResults = async () => {
     try {
       const { data, error } = await supabase
@@ -70,12 +55,9 @@ const RVPStatusSite = () => {
       
       if (error) throw error;
       
-      // Count votes
       const counts = { in: 0, out: 0 };
       data.forEach(vote => {
-        if (vote.vote_type === 'in' || vote.vote_type === 'out') {
-          counts[vote.vote_type]++;
-        }
+        counts[vote.vote_type]++;
       });
       
       setPollResults(counts);
@@ -84,27 +66,136 @@ const RVPStatusSite = () => {
     }
   };
 
-  const handleVote = async (choice) => {
-    if (!hasVoted) {
-      try {
-        // Insert vote into Supabase
-        const { error } = await supabase
-          .from('poll_votes')
-          .insert([{ vote_type: choice }]);
+  // Load historical trend data
+  const loadTrendData = async () => {
+    try {
+      const daysToLoad = trendPeriod === 'week' ? 7 : 30;
+      
+      const { data, error} = await supabase
+        .from('poll_votes')
+        .select('created_at, vote_type')
+        .gte('created_at', new Date(Date.now() - daysToLoad * 24 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+
+      // Group by day
+      const dailyData = {};
+      data.forEach(vote => {
+        const date = new Date(vote.created_at).toLocaleDateString('nl-NL', { 
+          day: 'numeric', 
+          month: 'short' 
+        });
         
-        if (error) throw error;
+        if (!dailyData[date]) {
+          dailyData[date] = { date, in: 0, out: 0, total: 0 };
+        }
         
-        // Update local state
-        setVote(choice);
-        setHasVoted(true);
-        localStorage.setItem('rvp-voted', choice);
+        dailyData[date][vote.vote_type]++;
+        dailyData[date].total++;
+      });
+
+      // Fill in missing days
+      const filledData = [];
+      for (let i = daysToLoad - 1; i >= 0; i--) {
+        const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        const dateStr = date.toLocaleDateString('nl-NL', { 
+          day: 'numeric', 
+          month: 'short' 
+        });
         
-        // Reload poll results
-        await loadPollResults();
-      } catch (error) {
-        console.error('Error voting:', error);
+        filledData.push(dailyData[dateStr] || { date: dateStr, in: 0, out: 0, total: 0 });
+      }
+
+      setTrendData(filledData);
+    } catch (error) {
+      console.error('Error loading trend data:', error);
+    }
+  };
+
+  // Check vote eligibility
+  const checkVoteEligibility = () => {
+    const lastVoteTime = localStorage.getItem('rvp-last-vote-time');
+    const lastVoteChoice = localStorage.getItem('rvp-last-vote-choice');
+    
+    if (lastVoteTime) {
+      const timeSinceVote = Date.now() - parseInt(lastVoteTime);
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      
+      if (timeSinceVote < twentyFourHours) {
+        setCanVote(false);
+        setVote(lastVoteChoice);
+        setTimeUntilNextVote(twentyFourHours - timeSinceVote);
+      } else {
+        setCanVote(true);
+        setVote(null);
+        setTimeUntilNextVote(null);
       }
     }
+  };
+
+  // Handle vote
+  const handleVote = async (choice) => {
+    if (!canVote) return;
+    
+    try {
+      const { error } = await supabase
+        .from('poll_votes')
+        .insert([{ vote_type: choice }]);
+      
+      if (error) throw error;
+      
+      localStorage.setItem('rvp-last-vote-time', Date.now().toString());
+      localStorage.setItem('rvp-last-vote-choice', choice);
+      
+      setVote(choice);
+      setCanVote(false);
+      setTimeUntilNextVote(24 * 60 * 60 * 1000);
+      
+      await loadPollResults();
+      await loadTrendData();
+    } catch (error) {
+      console.error('Error submitting vote:', error);
+      alert('Er ging iets mis. Probeer het opnieuw.');
+    }
+  };
+
+  // Countdown timer
+  useEffect(() => {
+    if (!canVote && timeUntilNextVote) {
+      const interval = setInterval(() => {
+        const newTimeLeft = timeUntilNextVote - 1000;
+        
+        if (newTimeLeft <= 0) {
+          setCanVote(true);
+          setVote(null);
+          setTimeUntilNextVote(null);
+          clearInterval(interval);
+        } else {
+          setTimeUntilNextVote(newTimeLeft);
+        }
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [canVote, timeUntilNextVote]);
+
+  // Initial load
+  useEffect(() => {
+    checkVoteEligibility();
+    loadPollResults();
+    loadTrendData();
+  }, []);
+
+  // Reload on period change
+  useEffect(() => {
+    loadTrendData();
+  }, [trendPeriod]);
+
+  const formatTimeRemaining = (ms) => {
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}u ${minutes}m`;
   };
 
   const handleAdminToggle = () => {
@@ -118,8 +209,30 @@ const RVPStatusSite = () => {
   };
 
   const totalVotes = pollResults.in + pollResults.out;
-  const outPercentage = Math.round((pollResults.out / totalVotes) * 100);
-  const inPercentage = 100 - outPercentage;
+  const outPercentage = totalVotes > 0 ? Math.round((pollResults.out / totalVotes) * 100) : 0;
+  const inPercentage = totalVotes > 0 ? 100 - outPercentage : 0;
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{
+          background: '#fff',
+          padding: '12px',
+          border: '1px solid #e0e0e0',
+          borderRadius: '8px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <p style={{ margin: '0 0 8px 0', fontWeight: '600' }}>{payload[0].payload.date}</p>
+          <p style={{ margin: '4px 0', color: '#2e7d32' }}>IN: {payload[0].payload.in}</p>
+          <p style={{ margin: '4px 0', color: '#c62828' }}>OUT: {payload[0].payload.out}</p>
+          <p style={{ margin: '8px 0 0 0', fontWeight: '600', borderTop: '1px solid #e0e0e0', paddingTop: '8px' }}>
+            Totaal: {payload[0].payload.total}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div style={{ 
@@ -127,7 +240,6 @@ const RVPStatusSite = () => {
       minHeight: '100vh',
       background: '#f5f5f5'
     }}>
-      {/* Header */}
       <header style={{
         background: '#fff',
         padding: '1.25rem 1.5rem',
@@ -148,8 +260,7 @@ const RVPStatusSite = () => {
               border: 'none',
               color: '#666',
               cursor: 'pointer',
-              fontSize: '0.9rem',
-              fontWeight: '400'
+              fontSize: '0.9rem'
             }}
           >
             admin
@@ -157,7 +268,6 @@ const RVPStatusSite = () => {
         </div>
       </header>
 
-      {/* Admin Modal */}
       {showAdmin && (
         <div style={{
           position: 'fixed',
@@ -185,32 +295,31 @@ const RVPStatusSite = () => {
               placeholder="Wachtwoord"
               value={adminPassword}
               onChange={(e) => setAdminPassword(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAdminToggle()}
               style={{
                 width: '100%',
                 padding: '0.75rem',
                 border: '1px solid #e0e0e0',
                 borderRadius: '8px',
-                marginBottom: '1rem',
-                boxSizing: 'border-box',
-                fontSize: '1rem'
+                fontSize: '1rem',
+                marginBottom: '1rem'
               }}
             />
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 onClick={handleAdminToggle}
                 style={{
                   flex: 1,
                   padding: '0.75rem',
-                  background: '#e30613',
+                  background: '#000',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  fontWeight: '600',
                   fontSize: '1rem'
                 }}
               >
-                Toggle Status
+                Toggle
               </button>
               <button
                 onClick={() => {
@@ -221,357 +330,274 @@ const RVPStatusSite = () => {
                   flex: 1,
                   padding: '0.75rem',
                   background: '#f5f5f5',
-                  color: '#333',
                   border: 'none',
                   borderRadius: '8px',
                   cursor: 'pointer',
                   fontSize: '1rem'
                 }}
               >
-                Annuleren
+                Cancel
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Hero Status */}
-      <section style={{
-        padding: '4rem 1.5rem 3rem',
-        textAlign: 'center',
-        maxWidth: '800px',
-        margin: '0 auto'
-      }}>
-        <h2 style={{
-          color: '#000',
-          fontSize: '1.75rem',
-          marginBottom: '3rem',
-          lineHeight: '1.4',
-          fontWeight: '600'
-        }}>
-          Is Robin van Persie nog trainer van Feyenoord?
-        </h2>
-        
-        <div style={{
-          width: '200px',
-          height: '200px',
-          margin: '0 auto',
-          background: isCoach ? '#2d7a4f' : '#c41e3a',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-        }}>
-          <span style={{
-            color: '#fff',
-            fontSize: '4rem',
-            fontWeight: 'bold',
-            textTransform: 'uppercase'
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <div style={{
+            width: '200px',
+            height: '200px',
+            borderRadius: '50%',
+            background: isCoach ? '#2e7d32' : '#c62828',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
           }}>
-            {isCoach ? 'JA' : 'NEE'}
-          </span>
-        </div>
-
-        <p style={{ color: '#666', marginTop: '2rem', fontSize: '0.9rem' }}>
-          Laatste update: 17 januari 2026 15:23
-        </p>
-      </section>
-
-      {/* Poll Section */}
-      <section style={{
-        padding: '2rem 1.5rem',
-        maxWidth: '800px',
-        margin: '0 auto'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h3 style={{ color: '#000', fontSize: '1.5rem', marginBottom: '0.5rem', fontWeight: '600' }}>
-            Robin van Persie: In of Out?
-          </h3>
+            <span style={{ 
+              color: '#fff', 
+              fontSize: '4rem', 
+              fontWeight: '700'
+            }}>
+              {isCoach ? 'JA' : 'NEE'}
+            </span>
+          </div>
           <p style={{ color: '#666', fontSize: '0.95rem' }}>
-            Al {totalVotes.toLocaleString('nl-NL')} stemmen
+            Laatste update: {new Date().toLocaleDateString('nl-NL', { 
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
           </p>
         </div>
 
-        {!hasVoted ? (
+        <div style={{
+          background: '#fff',
+          borderRadius: '16px',
+          padding: '2rem',
+          marginBottom: '2rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+        }}>
+          <h2 style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: '700', 
+            marginTop: 0,
+            marginBottom: '0.5rem',
+            textAlign: 'center'
+          }}>
+            Robin van Persie: In of Out?
+          </h2>
+          <p style={{
+            textAlign: 'center',
+            color: '#666',
+            fontSize: '0.9rem',
+            marginBottom: '2rem'
+          }}>
+            Al {totalVotes} {totalVotes === 1 ? 'stem' : 'stemmen'}
+          </p>
+
+          {!canVote && vote && (
+            <div style={{
+              background: '#f5f5f5',
+              padding: '1rem',
+              borderRadius: '8px',
+              marginBottom: '1.5rem',
+              textAlign: 'center'
+            }}>
+              <p style={{ margin: '0 0 0.5rem 0', color: '#666' }}>
+                ✓ Je hebt gestemd voor: <strong style={{ color: vote === 'in' ? '#2e7d32' : '#c62828' }}>
+                  {vote === 'in' ? 'IN' : 'OUT'}
+                </strong>
+              </p>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#999' }}>
+                Je kan over {formatTimeRemaining(timeUntilNextVote)} opnieuw stemmen
+              </p>
+            </div>
+          )}
+
           <div style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: '1rem', 
-            marginBottom: '3rem' 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '1rem',
+            marginBottom: '2rem'
           }}>
             <button
               onClick={() => handleVote('in')}
+              disabled={!canVote}
               style={{
-                padding: '2rem 1.5rem',
-                background: '#fff',
-                color: '#000',
-                border: '2px solid #e0e0e0',
+                padding: '3rem 1rem',
+                background: canVote ? '#fff' : '#f5f5f5',
+                border: `2px solid ${canVote ? '#2e7d32' : '#e0e0e0'}`,
                 borderRadius: '12px',
-                fontSize: '1rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '1rem',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = '#2d7a4f';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.12)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = '#e0e0e0';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                cursor: canVote ? 'pointer' : 'not-allowed',
+                opacity: canVote ? 1 : 0.6
               }}
             >
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2d7a4f" strokeWidth="2">
-                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-              </svg>
-              <div style={{ fontSize: '1.25rem', fontWeight: '700' }}>IN</div>
+              <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>👍</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#2e7d32' }}>IN</div>
             </button>
+
             <button
               onClick={() => handleVote('out')}
+              disabled={!canVote}
               style={{
-                padding: '2rem 1.5rem',
-                background: '#fff',
-                color: '#000',
-                border: '2px solid #e0e0e0',
+                padding: '3rem 1rem',
+                background: canVote ? '#fff' : '#f5f5f5',
+                border: `2px solid ${canVote ? '#c62828' : '#e0e0e0'}`,
                 borderRadius: '12px',
-                fontSize: '1rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '1rem',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = '#e30613';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.12)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = '#e0e0e0';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                cursor: canVote ? 'pointer' : 'not-allowed',
+                opacity: canVote ? 1 : 0.6
               }}
             >
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#e30613" strokeWidth="2" style={{ transform: 'rotate(180deg)' }}>
-                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-              </svg>
-              <div style={{ fontSize: '1.25rem', fontWeight: '700' }}>OUT</div>
+              <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>👎</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#c62828' }}>OUT</div>
             </button>
           </div>
-        ) : (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '2rem',
-            background: '#fff',
-            borderRadius: '12px',
-            marginBottom: '3rem',
-            border: '1px solid #e0e0e0'
-          }}>
-            <p style={{ color: '#666', marginBottom: '0.5rem' }}>
-              Je hebt gestemd voor:
-            </p>
-            <p style={{ 
-              fontSize: '1.5rem', 
-              fontWeight: 'bold',
-              color: vote === 'out' ? '#e30613' : '#2d7a4f',
-              margin: 0
-            }}>
-              {vote === 'out' ? 'OUT' : 'IN'}
-            </p>
-          </div>
-        )}
 
-        {/* Trend Chart */}
+          <div>
+            <div style={{
+              display: 'flex',
+              height: '40px',
+              borderRadius: '20px',
+              overflow: 'hidden',
+              background: '#f5f5f5'
+            }}>
+              <div style={{
+                width: `${inPercentage}%`,
+                background: '#2e7d32',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontWeight: '600',
+                fontSize: '0.9rem'
+              }}>
+                {inPercentage}% IN
+              </div>
+              <div style={{
+                width: `${outPercentage}%`,
+                background: '#c62828',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontWeight: '600',
+                fontSize: '0.9rem'
+              }}>
+                {outPercentage}% OUT
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div style={{
           background: '#fff',
+          borderRadius: '16px',
           padding: '2rem',
-          borderRadius: '12px',
-          border: '1px solid #e0e0e0',
-          marginBottom: '2rem'
+          marginBottom: '2rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
         }}>
-          <h4 style={{ 
-            color: '#000', 
-            marginBottom: '0.5rem',
-            fontSize: '1.25rem',
-            fontWeight: '600'
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '1.5rem'
           }}>
-            Sentiment Trend (7 Dagen)
-          </h4>
-          <p style={{ 
-            color: '#666', 
-            fontSize: '0.9rem', 
-            marginBottom: '2rem' 
-          }}>
-            Percentage stemmen voor "OUT"
-          </p>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>
+              Sentiment Trend ({trendPeriod === 'week' ? '7 Dagen' : '30 Dagen'})
+            </h3>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setTrendPeriod('week')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: trendPeriod === 'week' ? '#000' : '#f5f5f5',
+                  color: trendPeriod === 'week' ? '#fff' : '#666',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}
+              >
+                Week
+              </button>
+              <button
+                onClick={() => setTrendPeriod('month')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: trendPeriod === 'month' ? '#000' : '#f5f5f5',
+                  color: trendPeriod === 'month' ? '#fff' : '#666',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}
+              >
+                Maand
+              </button>
+            </div>
+          </div>
+          
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={trendData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis 
                 dataKey="date" 
-                stroke="#666"
-                style={{ fontSize: '0.875rem' }}
+                tick={{ fill: '#666', fontSize: 12 }}
+                axisLine={{ stroke: '#e0e0e0' }}
               />
               <YAxis 
-                stroke="#666"
-                domain={[0, 28]}
-                ticks={[0, 7, 14, 21, 28]}
-                style={{ fontSize: '0.875rem' }}
-                label={{ 
-                  value: '0%', 
-                  position: 'insideLeft', 
-                  offset: -5,
-                  style: { fontSize: '0.75rem', fill: '#666' }
-                }}
+                tick={{ fill: '#666', fontSize: 12 }}
+                axisLine={{ stroke: '#e0e0e0' }}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  background: '#fff', 
-                  border: '1px solid #e0e0e0', 
-                  borderRadius: '8px',
-                  fontSize: '0.875rem'
-                }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="out" 
-                stroke="#e30613" 
-                strokeWidth={2}
-                dot={{ fill: '#e30613', r: 4 }}
-              />
-            </LineChart>
+              <Tooltip content={<CustomTooltip />} />
+              <Legend iconType="square" />
+              <Bar dataKey="in" fill="#2e7d32" radius={[8, 8, 0, 0]} name="IN" />
+              <Bar dataKey="out" fill="#c62828" radius={[8, 8, 0, 0]} name="OUT" />
+            </BarChart>
           </ResponsiveContainer>
-          <p style={{ 
-            color: '#999', 
-            fontSize: '0.85rem', 
-            marginTop: '1rem',
-            textAlign: 'center'
-          }}>
-            Trend toont het percentage supporters dat "OUT" steunt over de afgelopen week.
-          </p>
         </div>
-      </section>
 
-      {/* News Feed */}
-      <section style={{
-        padding: '2rem 1.5rem 4rem',
-        maxWidth: '800px',
-        margin: '0 auto'
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '1.5rem' 
+        <div style={{
+          background: '#fff',
+          borderRadius: '16px',
+          padding: '2rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
         }}>
-          <h3 style={{ 
-            color: '#000', 
-            fontSize: '1.5rem',
-            fontWeight: '600',
-            margin: 0
-          }}>
-            Laatste Nieuws & Geruchten
+          <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginTop: 0, marginBottom: '1.5rem' }}>
+            Laatste Nieuws
           </h3>
-          <span style={{ 
-            color: '#999', 
-            fontSize: '0.85rem' 
-          }}>
-            Update: 1m geleden
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {newsItems.map((item, index) => (
-            <a
-              key={index}
-              href={item.url}
-              style={{
-                background: '#fff',
-                padding: '1.25rem',
-                borderRadius: '8px',
-                textDecoration: 'none',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: '1rem',
-                border: '1px solid #e0e0e0',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = '#ccc';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = '#e0e0e0';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <div style={{ 
-                  color: '#e30613', 
-                  fontSize: '0.75rem', 
-                  fontWeight: '700',
-                  letterSpacing: '0.5px',
-                  marginBottom: '0.5rem'
-                }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {newsItems.map((item, index) => (
+              <a
+                key={index}
+                href={item.url}
+                style={{
+                  display: 'block',
+                  padding: '1rem',
+                  background: '#f8f8f8',
+                  borderRadius: '8px',
+                  textDecoration: 'none'
+                }}
+              >
+                <div style={{ fontSize: '0.75rem', color: '#999', fontWeight: '600', marginBottom: '0.5rem' }}>
                   {item.source}
                 </div>
-                <h4 style={{ 
-                  color: '#000', 
-                  margin: '0 0 0.5rem 0', 
-                  fontSize: '1rem', 
-                  lineHeight: '1.5',
-                  fontWeight: '500'
-                }}>
+                <div style={{ fontSize: '1rem', color: '#000', fontWeight: '500', marginBottom: '0.5rem' }}>
                   {item.headline}
-                </h4>
-                <div style={{ 
-                  color: '#999', 
-                  fontSize: '0.85rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem'
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12 6 12 12 16 14"></polyline>
-                  </svg>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: '#666' }}>
                   {item.time}
                 </div>
-              </div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" style={{ flexShrink: 0 }}>
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <line x1="10" y1="14" x2="21" y2="3"></line>
-              </svg>
-            </a>
-          ))}
+              </a>
+            ))}
+          </div>
         </div>
-      </section>
-
-      {/* Footer */}
-      <footer style={{
-        background: '#fff',
-        padding: '2rem 1.5rem',
-        borderTop: '1px solid #e0e0e0',
-        textAlign: 'center',
-        color: '#666',
-        fontSize: '0.85rem'
-      }}>
-        <p style={{ margin: '0 0 0.5rem 0' }}>isrvpcoach.nl - Een onafhankelijke status tracker</p>
-        <p style={{ margin: 0, color: '#999' }}>
-          Geen officiële bron. Voor officieel nieuws, check <a href="https://www.feyenoord.nl" style={{ color: '#e30613', textDecoration: 'none' }}>Feyenoord.nl</a>
-        </p>
-      </footer>
+      </main>
     </div>
   );
 };
