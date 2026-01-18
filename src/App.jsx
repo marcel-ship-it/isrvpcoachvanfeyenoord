@@ -12,39 +12,33 @@ const RVPStatusSite = () => {
   const [pollResults, setPollResults] = useState({ in: 0, out: 0 });
   const [trendData, setTrendData] = useState([]);
   const [trendPeriod, setTrendPeriod] = useState('week');
+  const [newsItems, setNewsItems] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(true);
 
-  const [newsItems] = useState([
-    {
-      source: 'VOETBAL INTERNATIONAL',
-      headline: 'Van Persie ziet verbetering ondanks gelijkspel',
-      time: '2 uur geleden',
-      url: '#'
-    },
-    {
-      source: 'AD SPORTWERELD',
-      headline: 'Analyse: Waarom het middenveld nog niet staat bij Feyenoord',
-      time: '4 uur geleden',
-      url: '#'
-    },
-    {
-      source: '1908.NL',
-      headline: 'Supporters steunen Van Persie massaal tijdens training',
-      time: '6 uur geleden',
-      url: '#'
-    },
-    {
-      source: 'ESPN.NL',
-      headline: 'Feyenoord strikt nieuwe assistent op voorspraak van hoofdtrainer',
-      time: 'Gisteren',
-      url: '#'
-    },
-    {
-      source: 'VOETBAL INTERNATIONAL',
-      headline: 'Column: Geef Robin de tijd, Rome is niet in één dag gebouwd',
-      time: 'Gisteren',
-      url: '#'
+  // Load news from API
+  const loadNews = async () => {
+    try {
+      const response = await fetch('/api/news');
+      const data = await response.json();
+      
+      if (data.success && data.items) {
+        setNewsItems(data.items);
+      }
+    } catch (error) {
+      console.error('Error loading news:', error);
+      // Fallback to some default items if API fails
+      setNewsItems([
+        {
+          source: 'LOADING',
+          headline: 'Nieuws wordt geladen...',
+          time: '',
+          url: '#'
+        }
+      ]);
+    } finally {
+      setNewsLoading(false);
     }
-  ]);
+  };
 
   // Load poll results from database
   const loadPollResults = async () => {
@@ -185,12 +179,22 @@ const RVPStatusSite = () => {
     checkVoteEligibility();
     loadPollResults();
     loadTrendData();
+    loadNews();
   }, []);
 
   // Reload on period change
   useEffect(() => {
     loadTrendData();
   }, [trendPeriod]);
+
+  // Refresh news every 5 minutes
+  useEffect(() => {
+    const newsInterval = setInterval(() => {
+      loadNews();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(newsInterval);
+  }, []);
 
   const formatTimeRemaining = (ms) => {
     const hours = Math.floor(ms / (1000 * 60 * 60));
@@ -573,7 +577,7 @@ const RVPStatusSite = () => {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {newsItems.map((item, index) => (
-              <a
+              
                 key={index}
                 href={item.url}
                 style={{
