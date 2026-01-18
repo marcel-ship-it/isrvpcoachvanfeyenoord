@@ -578,7 +578,8 @@ const RVPStatusSite = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {newsItems.map((item, index) => (
               
-                key={index}
+                <a
+                  key={index}
                 href={item.url}
                 style={{
                   display: 'block',
