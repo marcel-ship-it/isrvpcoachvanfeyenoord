@@ -242,20 +242,21 @@ const RVPStatusSite = () => {
     <div style={{ 
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       minHeight: '100vh',
-      background: '#f5f5f5'
+      background: '#fafafa'
     }}>
       <header style={{
         background: '#fff',
-        padding: '1.25rem 1.5rem',
-        borderBottom: '1px solid #e0e0e0',
+        padding: '1.5rem 1.5rem',
+        borderBottom: '1px solid #e8e8e8',
         position: 'sticky',
         top: 0,
-        zIndex: 100
+        zIndex: 100,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2e7d32' }} />
-            <h1 style={{ color: '#000', margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>isrvpnogcoachvanfeyenoord.nl</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2e7d32' }} />
+            <h1 style={{ color: '#000', margin: 0, fontSize: '1.25rem', fontWeight: '700', letterSpacing: '-0.01em' }}>isrvpnogcoachvanfeyenoord.nl</h1>
           </div>
           <button 
             onClick={() => setShowAdmin(true)}
@@ -347,28 +348,30 @@ const RVPStatusSite = () => {
         </div>
       )}
 
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 1.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
           <div style={{
-            width: '200px',
-            height: '200px',
+            width: '240px',
+            height: '240px',
             borderRadius: '50%',
             background: isCoach ? '#2e7d32' : '#c62828',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 1.5rem',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+            margin: '0 auto 2rem',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            transition: 'transform 0.3s ease, box-shadow 0.3s ease'
           }}>
             <span style={{ 
               color: '#fff', 
-              fontSize: '4rem', 
-              fontWeight: '700'
+              fontSize: '5rem', 
+              fontWeight: '800',
+              letterSpacing: '-0.02em'
             }}>
               {isCoach ? 'JA' : 'NEE'}
             </span>
           </div>
-          <p style={{ color: '#666', fontSize: '0.95rem' }}>
+          <p style={{ color: '#999', fontSize: '0.9rem', fontWeight: '500' }}>
             Laatste update: {new Date().toLocaleDateString('nl-NL', { 
               day: 'numeric',
               month: 'long',
@@ -381,25 +384,27 @@ const RVPStatusSite = () => {
 
         <div style={{
           background: '#fff',
-          borderRadius: '16px',
-          padding: '2rem',
-          marginBottom: '2rem',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+          borderRadius: '24px',
+          padding: '3rem',
+          marginBottom: '3rem',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.06)'
         }}>
           <h2 style={{ 
-            fontSize: '1.5rem', 
-            fontWeight: '700', 
+            fontSize: '2rem', 
+            fontWeight: '800', 
             marginTop: 0,
-            marginBottom: '0.5rem',
-            textAlign: 'center'
+            marginBottom: '0.75rem',
+            textAlign: 'center',
+            letterSpacing: '-0.02em'
           }}>
             Robin van Persie: In of Out?
           </h2>
           <p style={{
             textAlign: 'center',
-            color: '#666',
-            fontSize: '0.9rem',
-            marginBottom: '2rem'
+            color: '#999',
+            fontSize: '1rem',
+            marginBottom: '2.5rem',
+            fontWeight: '500'
           }}>
             Al {totalVotes} {totalVotes === 1 ? 'stem' : 'stemmen'}
           </p>
@@ -426,71 +431,98 @@ const RVPStatusSite = () => {
           <div style={{ 
             display: 'grid', 
             gridTemplateColumns: '1fr 1fr', 
-            gap: '1rem',
-            marginBottom: '2rem'
+            gap: '1.5rem',
+            marginBottom: '2.5rem'
           }}>
             <button
               onClick={() => handleVote('in')}
               disabled={!canVote}
               style={{
-                padding: '3rem 1rem',
+                padding: '3.5rem 1.5rem',
                 background: canVote ? '#fff' : '#f5f5f5',
-                border: `2px solid ${canVote ? '#2e7d32' : '#e0e0e0'}`,
-                borderRadius: '12px',
+                border: `3px solid ${canVote ? '#2e7d32' : '#e0e0e0'}`,
+                borderRadius: '20px',
                 cursor: canVote ? 'pointer' : 'not-allowed',
-                opacity: canVote ? 1 : 0.6
+                opacity: canVote ? 1 : 0.6,
+                transition: 'all 0.2s ease',
+                transform: 'scale(1)'
+              }}
+              onMouseEnter={(e) => {
+                if (canVote) {
+                  e.currentTarget.style.transform = 'scale(1.02)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(46, 125, 50, 0.15)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
-              <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>👍</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#2e7d32' }}>IN</div>
+              <div style={{ fontSize: '4rem', marginBottom: '0.75rem' }}>👍</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#2e7d32', letterSpacing: '-0.01em' }}>IN</div>
             </button>
 
             <button
               onClick={() => handleVote('out')}
               disabled={!canVote}
               style={{
-                padding: '3rem 1rem',
+                padding: '3.5rem 1.5rem',
                 background: canVote ? '#fff' : '#f5f5f5',
-                border: `2px solid ${canVote ? '#c62828' : '#e0e0e0'}`,
-                borderRadius: '12px',
+                border: `3px solid ${canVote ? '#c62828' : '#e0e0e0'}`,
+                borderRadius: '20px',
                 cursor: canVote ? 'pointer' : 'not-allowed',
-                opacity: canVote ? 1 : 0.6
+                opacity: canVote ? 1 : 0.6,
+                transition: 'all 0.2s ease',
+                transform: 'scale(1)'
+              }}
+              onMouseEnter={(e) => {
+                if (canVote) {
+                  e.currentTarget.style.transform = 'scale(1.02)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(198, 40, 40, 0.15)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
-              <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>👎</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#c62828' }}>OUT</div>
+              <div style={{ fontSize: '4rem', marginBottom: '0.75rem' }}>👎</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#c62828', letterSpacing: '-0.01em' }}>OUT</div>
             </button>
           </div>
 
           <div>
             <div style={{
               display: 'flex',
-              height: '40px',
-              borderRadius: '20px',
+              height: '56px',
+              borderRadius: '28px',
               overflow: 'hidden',
-              background: '#f5f5f5'
+              background: '#f5f5f5',
+              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.06)'
             }}>
               <div style={{
                 width: `${inPercentage}%`,
-                background: '#2e7d32',
+                background: 'linear-gradient(135deg, #2e7d32 0%, #43a047 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#fff',
-                fontWeight: '600',
-                fontSize: '0.9rem'
+                fontWeight: '700',
+                fontSize: '1.1rem',
+                transition: 'width 0.5s ease'
               }}>
                 {inPercentage}% IN
               </div>
               <div style={{
                 width: `${outPercentage}%`,
-                background: '#c62828',
+                background: 'linear-gradient(135deg, #c62828 0%, #e53935 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#fff',
-                fontWeight: '600',
-                fontSize: '0.9rem'
+                fontWeight: '700',
+                fontSize: '1.1rem',
+                transition: 'width 0.5s ease'
               }}>
                 {outPercentage}% OUT
               </div>
@@ -500,18 +532,18 @@ const RVPStatusSite = () => {
 
         <div style={{
           background: '#fff',
-          borderRadius: '16px',
-          padding: '2rem',
-          marginBottom: '2rem',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+          borderRadius: '24px',
+          padding: '3rem',
+          marginBottom: '3rem',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.06)'
         }}>
           <div style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
-            marginBottom: '1.5rem'
+            marginBottom: '2rem'
           }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>
+            <h3 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, letterSpacing: '-0.02em' }}>
               Sentiment Trend ({trendPeriod === 'week' ? '7 Dagen' : '30 Dagen'})
             </h3>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -568,14 +600,14 @@ const RVPStatusSite = () => {
 
         <div style={{
           background: '#fff',
-          borderRadius: '16px',
-          padding: '2rem',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+          borderRadius: '24px',
+          padding: '3rem',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.06)'
         }}>
-          <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginTop: 0, marginBottom: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.75rem', fontWeight: '800', marginTop: 0, marginBottom: '2rem', letterSpacing: '-0.02em' }}>
             Laatste Nieuws
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {newsItems.map((item, index) => (
               <a
                 key={index}
@@ -584,25 +616,38 @@ const RVPStatusSite = () => {
                 rel="noopener noreferrer"
                 style={{
                   display: 'block',
-                  padding: '1rem',
-                  background: '#f8f8f8',
-                  borderRadius: '8px',
+                  padding: '1.5rem',
+                  background: '#fff',
+                  border: '2px solid #f0f0f0',
+                  borderRadius: '16px',
                   textDecoration: 'none',
-                  position: 'relative'
+                  position: 'relative',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)';
+                  e.currentTarget.style.borderColor = '#e0e0e0';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
+                  e.currentTarget.style.borderColor = '#f0f0f0';
                 }}
               >
-                <div style={{ fontSize: '0.75rem', color: '#999', fontWeight: '600', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.7rem', color: '#999', fontWeight: '700', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {item.source}
                 </div>
-                <div style={{ fontSize: '1rem', color: '#000', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>{item.headline}</span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <div style={{ fontSize: '1.1rem', color: '#000', fontWeight: '600', marginBottom: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem', lineHeight: '1.4' }}>
+                  <span style={{ flex: 1 }}>{item.headline}</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                     <polyline points="15 3 21 3 21 9"></polyline>
                     <line x1="10" y1="14" x2="21" y2="3"></line>
                   </svg>
                 </div>
-                <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                <div style={{ fontSize: '0.85rem', color: '#666', fontWeight: '500' }}>
                   {item.time}
                 </div>
               </a>
