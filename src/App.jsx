@@ -254,8 +254,8 @@ const RVPStatusSite = () => {
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#e30613' }} />
-            <h1 style={{ color: '#000', margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>isrvpcoach.nl</h1>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2e7d32' }} />
+            <h1 style={{ color: '#000', margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>isrvpnogcoachvanfeyenoord.nl</h1>
           </div>
           <button 
             onClick={() => setShowAdmin(true)}
@@ -578,22 +578,31 @@ const RVPStatusSite = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {newsItems.map((item, index) => (
               
-                <a
-                  key={index}
+                key={index}
                 href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{
                   display: 'block',
                   padding: '1rem',
                   background: '#f8f8f8',
                   borderRadius: '8px',
-                  textDecoration: 'none'
+                  textDecoration: 'none',
+                  transition: 'background 0.2s'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#f8f8f8'}
               >
                 <div style={{ fontSize: '0.75rem', color: '#999', fontWeight: '600', marginBottom: '0.5rem' }}>
                   {item.source}
                 </div>
-                <div style={{ fontSize: '1rem', color: '#000', fontWeight: '500', marginBottom: '0.5rem' }}>
-                  {item.headline}
+                <div style={{ fontSize: '1rem', color: '#000', fontWeight: '500', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>{item.headline}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginLeft: 'auto' }}>
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
                 </div>
                 <div style={{ fontSize: '0.85rem', color: '#666' }}>
                   {item.time}
