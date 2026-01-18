@@ -51,7 +51,7 @@ export default async function handler(req, res) {
   const parser = new Parser({
     timeout: 10000,
     headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; RVPCoach/1.0; +https://isrvpcoachvanfeyenoord.vercel.app)',
+      'User-Agent': 'Mozilla/5.0 (compatible; RVPCoach/1.0; +https://isrvpcoachvanfeyenoord.nl)',
     },
   });
 
