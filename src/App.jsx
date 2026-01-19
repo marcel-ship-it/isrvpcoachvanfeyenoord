@@ -203,7 +203,7 @@ const RVPStatusSite = () => {
   };
 
   const handleAdminToggle = () => {
-    if (adminPassword === 'rvp2026') {
+    if (adminPassword === 'vanspersie2026') {
       setIsCoach(!isCoach);
       setShowAdmin(false);
       setAdminPassword('');
@@ -258,18 +258,6 @@ const RVPStatusSite = () => {
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2e7d32' }} />
             <h1 style={{ color: '#000', margin: 0, fontSize: '1.25rem', fontWeight: '700', letterSpacing: '-0.01em' }}>isrvpnogcoachvanfeyenoord.nl</h1>
           </div>
-          <button 
-            onClick={() => setShowAdmin(true)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#666',
-              cursor: 'pointer',
-              fontSize: '0.9rem'
-            }}
-          >
-            admin
-          </button>
         </div>
       </header>
 
@@ -653,6 +641,24 @@ const RVPStatusSite = () => {
               </a>
             ))}
           </div>
+        </div>
+
+        {/* Admin Button at Bottom */}
+        <div style={{ textAlign: 'center', marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid #e8e8e8' }}>
+          <button 
+            onClick={() => setShowAdmin(true)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#999',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: '500',
+              padding: '0.5rem 1rem'
+            }}
+          >
+            admin
+          </button>
         </div>
       </main>
     </div>
